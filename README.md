@@ -66,7 +66,7 @@ ARC-Core sits in the middle because it owns:
 
 ## Current feature surface
 
-The current repository contains a functional prototype with the following major areas:
+The current repository (ARC-Core) contains a functional prototype with the following major areas:
 
 ### API and application surface
 - FastAPI service entrypoint
