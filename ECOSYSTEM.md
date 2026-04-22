@@ -143,6 +143,14 @@ Each of the five consumer repos below now carries its own **🔐 Built on ARC-Co
 | 🎨 Proto-Synth Grid Engine | [Proto-Synth_Grid_Engine](https://github.com/GareBear99/Proto-Synth_Grid_Engine) |
 | 🔭 Neo-VECTR Solar Sim | [Neo-VECTR_Solar_Sim_NASA_Standard](https://github.com/GareBear99/Neo-VECTR_Solar_Sim_NASA_Standard) |
 | 🎵 TizWildin Entertainment Hub | [TizWildinEntertainmentHUB](https://github.com/GareBear99/TizWildinEntertainmentHUB) |
+| 🏠 RAG Command Center | [RAG-Command-Center](https://github.com/GareBear99/RAG-Command-Center) |
+| 🤖 Robotics Master Controller | [Robotics-Master-Controller](https://github.com/GareBear99/Robotics-Master-Controller) |
+| 📈 BrokeBot (CEX funding-rate arb) | [BrokeBot](https://github.com/GareBear99/BrokeBot) |
+| 📈 Charm (Uniswap v3 spot bot) | [Charm](https://github.com/GareBear99/Charm) |
+| 📈 Harvest (multi-TF crypto platform) | [Harvest](https://github.com/GareBear99/Harvest) |
+| 📈 One-Shot-Multi-Shot (binary options) | [One-Shot-Multi-Shot](https://github.com/GareBear99/One-Shot-Multi-Shot) |
+| 📈 DecaGrid (capital-ladder grid docs) | [DecaGrid](https://github.com/GareBear99/DecaGrid) |
+| 📈 EdgeStack_Currency (execution spec) | [EdgeStack_Currency](https://github.com/GareBear99/EdgeStack_Currency) |
 
 ---
 
@@ -262,6 +270,27 @@ Each plugin talks to the Hub over HTTPS, and every license check, update check, 
 - **ARC-Core owns**: the receipt format, the entitlement-event shape, the authority-over-activation contract, the case-management pattern.
 - **TizWildin Hub owns**: the Stripe integration, the FastAPI routes, the customer-facing UI, the plugin-specific activation logic, the GitHub release polling.
 - **Individual plugins own**: their DSP, their UI, their JUCE bindings. They consume the Hub, which consumes ARC-Core.
+
+---
+
+### 📈 Trading fleet — six repos, one event spine
+
+**Six public trading / execution-spec repos share a single ARC-Core-compatible doctrine: every market tick is an event, every order is a proposal, every fill is a receipt, every risk limit is an authority check, every backtest is a deterministic replay of the event log.**
+
+| Repo | Role | Stack | ARC-Core mapping |
+|---|---|---|---|
+| [BrokeBot](https://github.com/GareBear99/BrokeBot) | CEX funding-rate arbitrage (small accounts, USDT-TRC20) | Python, Binance Futures | Funding tick = event · entry decision = proposal · fill = receipt · risk-limit halt = authority refusal · kill switch = manual authority override |
+| [Charm](https://github.com/GareBear99/Charm) | On-chain spot bot on Base (Uniswap v3, ≤$12 accounts) | Node.js, ethers.js | Pool sample = event · mean-reversion trigger = proposal · swap tx = receipt · dedicated-wallet private key = scoped `auth_user` · per-session cap = authority limit |
+| [Harvest](https://github.com/GareBear99/Harvest) | Multi-timeframe crypto research platform with grid-search | Python, Web3 | OHLCV ingest = events · strategy selection = proposal w/ evidence · backtest = deterministic replay · data-freshness gate = authority refusal · MetaMask session = scoped auth |
+| [One-Shot-Multi-Shot](https://github.com/GareBear99/One-Shot-Multi-Shot) | Binary-options engine with 3-hearts risk lifecycle | JS / HTML5, MetaMask | Prediction tick = event · trade gate = proposal · outcome = receipt · heart depletion = authority halt · daily cap = authority ceiling |
+| [DecaGrid](https://github.com/GareBear99/DecaGrid) | Capital-ladder grid docs pack (whitepaper, runbook, DecaScore) | Static HTML / PDF | DecaScore tier = authority stratum · ladder rung = sizing authority · runbook clause = authority contract · records page = receipt-chain spec |
+| [EdgeStack_Currency](https://github.com/GareBear99/EdgeStack_Currency) | Canonical event-sourced multi-currency execution spec | Plain-prose spec | Immutable event ledger = ARC-Core event log · `FILL_PARTIAL` / `FX_CONVERSION` / `FEE` = receipts · `RECONCILIATION_CORRECTION` = authority-gated dual-record event |
+
+#### Where the boundary sits
+
+- **ARC-Core owns**: the event shape, the authority-gating primitive, the receipt chain, deterministic replay, the reconciliation contract.
+- **Each bot owns**: its venue adapter, its signal logic, its risk math, its UI. When wired to ARC-Core, decisions become receipts and the spine becomes the auditable journal.
+- **DecaGrid** owns the *policy* (how the ladder ought to escalate), [BrokeBot / Charm / Harvest / One-Shot-Multi-Shot] own the *actuator* (what orders to send), and **EdgeStack_Currency** owns the *ledger shape* (how state must move between accounts / venues / currencies). ARC-Core owns the *truth of what happened*.
 
 ---
 
