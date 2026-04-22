@@ -1,3 +1,10 @@
+"""External-feed ingestion via connectors.
+
+Currently only one connector type is implemented: ``filesystem_jsonl``,
+which polls a directory for ``*.jsonl`` files and funnels each line through
+``ingest.create_event``. The full connector lifecycle (sources, runs, cursor
+watermark, receipts) is mapped out in ``docs/ARCHITECTURE.md`` §10.
+"""
 from __future__ import annotations
 import json
 from pathlib import Path
@@ -9,6 +16,12 @@ from arc.services.ingest import create_event
 
 
 def create_connector(item: ConnectorIn) -> dict:
+    """Upsert a connector by ``name``, returning its canonical record.
+
+    Keys an existing record on the name; if present, re-applies the type,
+    config path, and enabled/disabled status. A ``connector`` receipt is
+    appended either way.
+    """
     now = utcnow()
     path = str(Path(item.path).expanduser())
     with connect() as conn:
@@ -31,12 +44,14 @@ def create_connector(item: ConnectorIn) -> dict:
 
 
 def list_connectors() -> list[dict]:
+    """Return all connectors with config and last_result JSON deserialized."""
     with connect() as conn:
         rows = conn.execute("SELECT * FROM connector_sources ORDER BY created_at ASC").fetchall()
         return [{**dict(r), "config": json.loads(r["config_json"]), "last_result": json.loads(r["last_result_json"])} for r in rows]
 
 
 def get_connector(connector_id: str) -> dict:
+    """Load one connector by id; raises ``KeyError`` if absent."""
     with connect() as conn:
         row = conn.execute("SELECT * FROM connector_sources WHERE connector_id = ?", (connector_id,)).fetchone()
         if not row:
@@ -45,6 +60,7 @@ def get_connector(connector_id: str) -> dict:
 
 
 def get_connector_by_name(name: str) -> dict:
+    """Load one connector by its unique name; raises ``KeyError`` if absent."""
     with connect() as conn:
         row = conn.execute("SELECT connector_id FROM connector_sources WHERE name = ?", (name,)).fetchone()
         if not row:
@@ -53,6 +69,11 @@ def get_connector_by_name(name: str) -> dict:
 
 
 def _iter_jsonl(path: Path):
+    """Yield parsed JSON objects one-per-line from a ``.jsonl`` file.
+
+    Blank lines are skipped. Any line that fails ``json.loads`` raises,
+    aborting the whole poll (the run is marked ``status=error``).
+    """
     with path.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -62,6 +83,16 @@ def _iter_jsonl(path: Path):
 
 
 def poll_connector(connector_id: str) -> dict:
+    """Run a single poll cycle for ``connector_id`` against its filesystem inbox.
+
+    Iterates ``*.jsonl`` files whose name sorts after the stored cursor
+    watermark, constructs an ``EventIn`` per line, and feeds it through
+    ``ingest.create_event``. On completion, updates the cursor to the
+    last-processed filename, writes a ``last_result`` JSON summary, closes
+    the ``connector_runs`` row as ``ok``, and appends a ``connector_run``
+    receipt. Any raised exception closes the run as ``error`` with the
+    exception repr recorded, then re-raises.
+    """
     connector = get_connector(connector_id)
     config = connector["config"]
     inbox = Path(config["path"]).expanduser()
@@ -122,6 +153,12 @@ def poll_connector(connector_id: str) -> dict:
 
 
 def ensure_demo_connector() -> dict:
+    """Seed + register the demo filesystem connector on a clean bootstrap.
+
+    Writes two sample JSONL records (a presence event and a geo_ping event)
+    to ``data/connectors/demo_feed/0001_seed.jsonl`` if missing, then
+    upserts the connector record.
+    """
     demo_path = CONNECTOR_INBOX_DIR / "demo_feed"
     demo_path.mkdir(parents=True, exist_ok=True)
     seed_file = demo_path / "0001_seed.jsonl"

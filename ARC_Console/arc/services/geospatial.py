@@ -1,3 +1,13 @@
+"""Geospatial service layer.
+
+Orchestrates structures, sensors, geofences, tracks, blueprint overlays,
+calibration profiles, incidents, heatmaps, and the portable evidence-pack
+export. Every state-producing operation appends a receipt via
+``services.audit.append_receipt`` so the geo state is tamper-evident
+alongside the rest of the signal-intelligence stack.
+
+See ``docs/ARCHITECTURE.md`` §9.
+"""
 from __future__ import annotations
 import json
 from statistics import mean
@@ -9,10 +19,15 @@ from arc.services.audit import append_receipt
 
 
 def _json_load(value: str):
+    """``json.loads`` only if the value is a string; pass-through otherwise.
+
+    Lets callers reuse this on rows where the JSON may already be decoded.
+    """
     return json.loads(value) if isinstance(value, str) else value
 
 
 def list_structures() -> list[dict]:
+    """Return all structures ordered by name, with polygon + center hydrated."""
     with connect() as conn:
         rows = conn.execute("SELECT * FROM structures ORDER BY name ASC").fetchall()
         return [
@@ -26,6 +41,7 @@ def list_structures() -> list[dict]:
 
 
 def get_structure(structure_id: str) -> dict:
+    """Load one structure by id; raises ``KeyError`` if absent."""
     with connect() as conn:
         row = conn.execute("SELECT * FROM structures WHERE structure_id = ?", (structure_id,)).fetchone()
         if not row:
@@ -38,6 +54,12 @@ def get_structure(structure_id: str) -> dict:
 
 
 def create_structure(name: str, address: str, structure_type: str, levels: int, polygon: list[list[float]]) -> dict:
+    """Upsert a structure on the unique ``(name, address)`` pair.
+
+    Pre-computes and stores ``center_lat/center_lng`` via ``centroid()`` so
+    UI queries don't need to recompute them on every request. Emits a
+    ``structure`` receipt on insert (no-op on duplicate).
+    """
     center = centroid(polygon)
     with connect() as conn:
         existing = conn.execute("SELECT structure_id FROM structures WHERE name = ? AND address = ?", (name, address)).fetchone()
@@ -54,6 +76,14 @@ def create_structure(name: str, address: str, structure_type: str, levels: int, 
 
 
 def build_sensors_for_structure(structure_id: str) -> list[dict]:
+    """Idempotently place 5 anchor sensors inside a structure's polygon.
+
+    Four sensors are placed via deterministic pseudo-random
+    ``seeded_point_in_polygon`` sampling with seeds 11/27/53/81; the fifth
+    is the polygon centroid (sensor_type ``center-anchor``). Sensor ids are
+    deterministic composites ``{structure_id}-sn{idx}`` so the call is
+    replay-safe. Returns existing sensors unchanged if any already exist.
+    """
     structure = get_structure(structure_id)
     with connect() as conn:
         existing = conn.execute("SELECT * FROM sensors WHERE structure_id = ? ORDER BY sensor_id ASC", (structure_id,)).fetchall()
@@ -93,6 +123,7 @@ def build_sensors_for_structure(structure_id: str) -> list[dict]:
 
 
 def list_sensors(structure_id: str | None = None) -> list[dict]:
+    """Return all sensors, optionally narrowed to one structure."""
     with connect() as conn:
         if structure_id:
             rows = conn.execute("SELECT * FROM sensors WHERE structure_id = ? ORDER BY sensor_id ASC", (structure_id,)).fetchall()
@@ -102,6 +133,13 @@ def list_sensors(structure_id: str | None = None) -> list[dict]:
 
 
 def upsert_geofence(name: str, geofence_type: str, structure_id: str | None, polygon: list[list[float]], severity: int = 6) -> dict:
+    """Insert a new geofence record and emit a ``geofence`` receipt.
+
+    Geofences with ``structure_id=None`` are global and apply to every
+    track estimation (the track engine does ``WHERE structure_id=? OR
+    structure_id IS NULL``). ``severity`` is the 1-10 int used for priority
+    display on hits.
+    """
     geofence_id = new_id("geo")
     with connect() as conn:
         conn.execute(
@@ -115,6 +153,7 @@ def upsert_geofence(name: str, geofence_type: str, structure_id: str | None, pol
 
 
 def list_geofences(structure_id: str | None = None) -> list[dict]:
+    """Return all geofences, optionally narrowed to one structure."""
     with connect() as conn:
         if structure_id:
             rows = conn.execute("SELECT * FROM geofences WHERE structure_id = ? ORDER BY created_at DESC", (structure_id,)).fetchall()
@@ -124,6 +163,14 @@ def list_geofences(structure_id: str | None = None) -> list[dict]:
 
 
 def infer_zone(polygon: list[list[float]], point: dict[str, float]) -> str:
+    """Classify a point into a named zone inside its structure's bounding box.
+
+    Normalizes the point's position to ``[0,1]`` within the bounds, then:
+
+    * within ``|.-0.5|<0.18`` on both axes → ``"Center-Core"``.
+    * ``ry<0.33`` → ``"North Zone"``, ``ry>0.66`` → ``"South Zone"``.
+    * Otherwise ``rx<0.5`` → ``"West Zone"`` else ``"East Zone"``.
+    """
     bounds = bounds_from_polygon(polygon)
     width = bounds["maxLng"] - bounds["minLng"]
     height = bounds["maxLat"] - bounds["minLat"]
@@ -142,6 +189,11 @@ def infer_zone(polygon: list[list[float]], point: dict[str, float]) -> str:
 
 
 def _candidate_cloud(structure: dict, point: dict[str, float], confidence: float, count: int = 16) -> list[dict]:
+    """Generate up to ``count`` cloud points around ``point`` for UI uncertainty rendering.
+
+    Radius is proportional to ``(1 - confidence)``, so the halo shrinks as
+    the estimate sharpens. Points outside the structure polygon are dropped.
+    """
     bounds = bounds_from_polygon(structure["polygon"])
     lat_span = max(0.00001, bounds["maxLat"] - bounds["minLat"])
     lng_span = max(0.00001, bounds["maxLng"] - bounds["minLng"])
@@ -161,6 +213,13 @@ def _candidate_cloud(structure: dict, point: dict[str, float], confidence: float
 
 
 def estimate_track(subject: str, structure_id: str, observations: list[dict], source: str = "manual", floor: int | None = None) -> dict:
+    """Run a weighted-RSSI estimate and persist the track + receipts.
+
+    Pipeline: estimator → zone classification → insert into ``track_points``
+    → evaluate geofences that apply to this structure (or are global) for
+    hits → build a UI candidate cloud → emit a ``track`` receipt. Raises
+    ``ValueError("No observations provided")`` for empty input.
+    """
     structure = get_structure(structure_id)
     estimate = estimate_from_observations(observations, structure={"polygon": structure["polygon"]})
     if not estimate:
@@ -219,6 +278,7 @@ def estimate_track(subject: str, structure_id: str, observations: list[dict], so
 
 
 def latest_tracks(limit: int = 100, subject: str | None = None, structure_id: str | None = None) -> list[dict]:
+    """Return the most recent track points, optionally filtered by subject/structure."""
     with connect() as conn:
         if subject and structure_id:
             rows = conn.execute("SELECT * FROM track_points WHERE subject = ? AND structure_id = ? ORDER BY ts DESC LIMIT ?", (subject, structure_id, limit)).fetchall()
@@ -239,6 +299,13 @@ def latest_tracks(limit: int = 100, subject: str | None = None, structure_id: st
 
 
 def get_heatmap(structure_id: str, grid_size: int = 8) -> dict:
+    """Compute a grid heatmap of track density inside a structure.
+
+    The structure's bounding box is partitioned into a ``grid_size × grid_size``
+    grid (capped at ``MAX_GRID_SIZE=64``). Cells whose center falls outside
+    the polygon are discarded. For each remaining cell the function reports
+    the count of track points inside it and the mean of their confidences.
+    """
     structure = get_structure(structure_id)
     bounds = bounds_from_polygon(structure["polygon"])
     relevant = latest_tracks(limit=5000, structure_id=structure_id)
@@ -269,6 +336,11 @@ def get_heatmap(structure_id: str, grid_size: int = 8) -> dict:
 
 
 def upsert_blueprint_overlay(structure_id: str, name: str, image_url: str, opacity: float, scale: float, offset_x: float, offset_y: float, rotation_deg: float, floor: int | None = None) -> dict:
+    """Insert or update a blueprint overlay record keyed by ``(structure_id, name, floor)``.
+
+    Used to layer floorplan imagery on top of the map in the geo UI. Emits
+    an ``overlay`` receipt on every call.
+    """
     get_structure(structure_id)
     now = utcnow()
     with connect() as conn:
@@ -297,6 +369,7 @@ def upsert_blueprint_overlay(structure_id: str, name: str, image_url: str, opaci
 
 
 def list_blueprint_overlays(structure_id: str | None = None) -> list[dict]:
+    """Return all blueprint overlays, optionally filtered to one structure."""
     with connect() as conn:
         if structure_id:
             rows = conn.execute("SELECT * FROM blueprint_overlays WHERE structure_id = ? ORDER BY updated_at ASC", (structure_id,)).fetchall()
@@ -306,6 +379,13 @@ def list_blueprint_overlays(structure_id: str | None = None) -> list[dict]:
 
 
 def create_calibration_profile(structure_id: str, name: str, path_loss: float, noise_db: float, smoothing: float, notes: str = "") -> dict:
+    """Upsert a calibration profile keyed by ``(structure_id, name)``.
+
+    Stores ``{path_loss, noise_db, smoothing}`` in ``profile_json``. These
+    values are persisted today but not yet threaded into the forward
+    ``rssi_from_distance_meters`` demo (known v6 limit — see
+    ARCHITECTURE §14).
+    """
     get_structure(structure_id)
     profile = {"path_loss": path_loss, "noise_db": noise_db, "smoothing": smoothing}
     now = utcnow()
@@ -331,6 +411,7 @@ def create_calibration_profile(structure_id: str, name: str, path_loss: float, n
 
 
 def list_calibration_profiles(structure_id: str | None = None) -> list[dict]:
+    """Return calibration profiles, optionally filtered to one structure, with profile JSON hydrated."""
     with connect() as conn:
         if structure_id:
             rows = conn.execute("SELECT * FROM calibration_profiles WHERE structure_id = ? ORDER BY updated_at ASC", (structure_id,)).fetchall()
@@ -340,6 +421,13 @@ def list_calibration_profiles(structure_id: str | None = None) -> list[dict]:
 
 
 def import_track_points(subject: str, structure_id: str, source: str, track_points: list[dict]) -> dict:
+    """Bulk-insert pre-computed track points (e.g. from an external RF system).
+
+    Skips the RSSI estimator — the caller provides final lat/lng and
+    confidence. Zone is auto-classified via ``infer_zone`` if the caller
+    didn't supply one. Emits one ``track_import`` receipt for the whole
+    batch.
+    """
     structure = get_structure(structure_id)
     imported = []
     with connect() as conn:
@@ -358,6 +446,11 @@ def import_track_points(subject: str, structure_id: str, source: str, track_poin
 
 
 def create_incident(title: str, severity: str, status: str, subject: str | None = None, structure_id: str | None = None, details: dict | None = None) -> dict:
+    """Open a new incident record and emit an ``incident`` receipt.
+
+    ``severity`` here is a free string (``"medium"``/``"critical"``/…),
+    distinct from the 1-10 integer severity used on events.
+    """
     incident_id = new_id("inc")
     payload = details or {}
     ts = utcnow()
@@ -372,12 +465,29 @@ def create_incident(title: str, severity: str, status: str, subject: str | None 
 
 
 def list_incidents(limit: int = 100) -> list[dict]:
+    """Return the most recent incidents with ``detail_json`` deserialized as ``details``."""
     with connect() as conn:
         rows = conn.execute("SELECT * FROM incidents ORDER BY ts DESC LIMIT ?", (limit,)).fetchall()
         return [{**dict(r), "details": _json_load(r["detail_json"])} for r in rows]
 
 
 def export_evidence_pack(case_id: str | None = None, subject: str | None = None) -> dict:
+    """Assemble a portable, offline-verifiable evidence bundle.
+
+    Given a ``case_id`` and/or ``subject``, joins together:
+
+    * The case row + all attached events (case scope).
+    * Up to 250 track_points for the subject (subject scope).
+    * All entities referenced by those events/subject (with aliases).
+    * Up to 250 edges touching those entities (by weight DESC).
+    * Case notes + subject notes (up to 100 each).
+    * Up to 250 most-recent receipts with the current chain tail hash
+      surfaced as ``receipt_chain_tail`` for offline verification.
+    * A summary dict counting everything included.
+
+    The pack is designed so a third party can take the JSON + signing key
+    and re-run ``verify_receipt_chain`` offline.
+    """
     with connect() as conn:
         case = None
         events = []
@@ -459,6 +569,14 @@ def export_evidence_pack(case_id: str | None = None, subject: str | None = None)
 
 
 def generate_demo_track(subject: str, structure_id: str) -> dict:
+    """Produce a synthetic RF track end-to-end for demos/tests.
+
+    Steps: ensure sensors exist → pick a deterministic ground-truth point
+    inside the structure via ``seeded_point_in_polygon`` → synthesize per-
+    sensor RSSI via ``make_observations`` → run ``estimate_track``. The
+    returned dict includes the ``truth`` key so UI/tests can visualize the
+    estimate error.
+    """
     sensors = build_sensors_for_structure(structure_id)
     structure = get_structure(structure_id)
     truth = seeded_point_in_polygon(structure["polygon"], 144.0)

@@ -1,3 +1,9 @@
+"""Analyst case management.
+
+A case groups together events, notes, and later proposals into one
+investigative unit. Events are attached via ``attach_event`` (idempotent —
+case/event pair uniqueness is enforced at the DB layer).
+"""
 from __future__ import annotations
 import sqlite3
 from arc.core.db import connect
@@ -5,6 +11,7 @@ from arc.core.schemas import CaseIn, new_id, utcnow
 
 
 def create_case(case: CaseIn) -> dict:
+    """Create a new case row and return the canonical case dict."""
     case_id = new_id("case")
     with connect() as conn:
         conn.execute(
@@ -16,6 +23,11 @@ def create_case(case: CaseIn) -> dict:
 
 
 def get_case(case_id: str) -> dict:
+    """Return the case record plus all attached events, joined to ``events``.
+
+    Raises ``KeyError(case_id)`` when the case does not exist, which the
+    HTTP layer converts to 404.
+    """
     with connect() as conn:
         row = conn.execute("SELECT * FROM cases WHERE case_id = ?", (case_id,)).fetchone()
         if not row:
@@ -28,6 +40,7 @@ def get_case(case_id: str) -> dict:
 
 
 def list_cases() -> list[dict]:
+    """Return all cases newest-first, each annotated with ``event_count``."""
     with connect() as conn:
         return [
             {
@@ -39,6 +52,12 @@ def list_cases() -> list[dict]:
 
 
 def attach_event(case_id: str, event_id: str) -> dict:
+    """Attach ``event_id`` to ``case_id``, returning the updated case.
+
+    Idempotent — re-attaching the same (case_id, event_id) is a no-op
+    (``IntegrityError`` is swallowed). Raises ``KeyError`` if either the
+    case or the event does not exist.
+    """
     with connect() as conn:
         if not conn.execute("SELECT 1 FROM cases WHERE case_id = ?", (case_id,)).fetchone():
             raise KeyError(case_id)

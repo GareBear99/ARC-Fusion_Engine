@@ -1,3 +1,9 @@
+"""Proposal lifecycle: create (with simulation) and approve.
+
+Every proposal stores a canned simulation result alongside its rationale,
+so an approver reviewing the proposal later sees the same predicted
+impact band the operator saw at creation time.
+"""
 from __future__ import annotations
 import json
 from arc.core.db import connect
@@ -6,6 +12,7 @@ from arc.core.simulator import simulate
 
 
 def create_proposal(prop: ProposalIn, created_by_role: str, risk_score: float) -> ProposalOut:
+    """Persist a new proposal in ``status="pending"`` with its simulation snapshot."""
     proposal_id = new_id("prop")
     sim = simulate(prop.action, prop.target_id, risk_score, depth=prop.simulation_depth)
     with connect() as conn:
@@ -18,6 +25,10 @@ def create_proposal(prop: ProposalIn, created_by_role: str, risk_score: float) -
 
 
 def get_proposal(proposal_id: str) -> ProposalOut:
+    """Load a proposal by id, deserializing the embedded simulation JSON.
+
+    Raises ``KeyError(proposal_id)`` when absent.
+    """
     with connect() as conn:
         row = conn.execute("SELECT * FROM proposals WHERE proposal_id = ?", (proposal_id,)).fetchone()
         if not row:
@@ -37,6 +48,7 @@ def get_proposal(proposal_id: str) -> ProposalOut:
 
 
 def approve_proposal(proposal_id: str) -> ProposalOut:
+    """Transition a pending proposal to ``status="approved"`` (idempotent)."""
     with connect() as conn:
         row = conn.execute("SELECT status FROM proposals WHERE proposal_id = ?", (proposal_id,)).fetchone()
         if not row:
@@ -48,5 +60,6 @@ def approve_proposal(proposal_id: str) -> ProposalOut:
 
 
 def list_proposals() -> list[dict]:
+    """Return all proposals newest-first with simulation JSON deserialized."""
     with connect() as conn:
         return [{**dict(r), "simulation": json.loads(r["simulation_json"])} for r in conn.execute("SELECT * FROM proposals ORDER BY created_at DESC").fetchall()]

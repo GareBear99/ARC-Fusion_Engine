@@ -70,6 +70,7 @@ flowchart TB
 All seven repos share one author and one funding target: [github.com/sponsors/GareBear99](https://github.com/sponsors/GareBear99).
 
 Full per-repo integration contracts: [**ECOSYSTEM.md**](./ECOSYSTEM.md).
+Deep technical reference (every module, table, algorithm, and endpoint): [**docs/ARCHITECTURE.md**](./docs/ARCHITECTURE.md).
 
 ### And beyond the core ecosystem — consumer applications using ARC-Core
 
@@ -115,7 +116,7 @@ ARC-Core is a structured intelligence-console foundation built around:
 
 - **FastAPI** backend with HTML dashboard
 - **SQLite** persistence with audit log
-- **78 Python files**
+- **39 Python files** (~2,611 LOC)
 - **13 passing tests**
 - **Auth + session** flows
 - **6 UI pages**: dashboard, signals, graph, timeline, cases, geo

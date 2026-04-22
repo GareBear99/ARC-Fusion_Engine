@@ -1,3 +1,9 @@
+"""Demo data bootstrap.
+
+Called from ``arc.api.deps.startup`` on every process start. Idempotent —
+checks existing row counts before seeding events/structures so a restart
+never duplicates the demo dataset.
+"""
 from __future__ import annotations
 from arc.core.db import init_db, connect
 from arc.core.schemas import EventIn
@@ -17,6 +23,21 @@ from arc.services.geospatial import (
 
 
 def seed_demo() -> None:
+    """Initialize the database and populate realistic demo data.
+
+    Steps (each idempotent):
+
+    1. Run ``init_db()`` to apply the full SQL schema.
+    2. Create the bootstrap admin user if missing.
+    3. If the events table is empty, ingest three representative demo events
+       (login, transfer, meeting) covering multiple entity types.
+    4. If no structures exist, create Pine House / Cedar Duplex / Lakeview
+       Home (real-world lat/lng polygons), build 5 sensors per structure,
+       add a perimeter geofence, blueprint overlay, and calibration profile
+       per structure, generate one demo RF track, and open a sample
+       incident against the first structure.
+    5. Ensure a demo filesystem connector exists and poll it once.
+    """
     init_db()
     ensure_bootstrap_admin()
     with connect() as conn:

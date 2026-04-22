@@ -1,3 +1,10 @@
+"""FastAPI application entrypoint.
+
+Instantiates the ASGI app, wires lifespan (which calls
+``arc.services.bootstrap.seed_demo`` on startup to init DB + seed demo
+data), configures CORS according to ``DEMO_MODE``, mounts the static UI
+at ``/ui``, and includes the route module.
+"""
 from __future__ import annotations
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -11,6 +18,7 @@ from arc.core.config import APP_NAME, APP_VERSION, DEMO_MODE
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    """FastAPI lifespan hook: seed the DB + demo data on process start."""
     startup()
     yield
 

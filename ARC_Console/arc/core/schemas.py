@@ -1,3 +1,14 @@
+"""Pydantic request/response models for ARC-Core's HTTP surface.
+
+Every request body posted to ``arc.api.routes`` is validated against one of
+the ``*In`` classes below; every structured response that isn't a bare dict
+is built from one of the ``*Out`` classes. Field-level validators enforce
+value ranges (confidence in [0,1], severity 1..10, RSSI -150..0, lat/lng
+bounds, polygon shape, etc.) — these are the first line of defense before
+any service code runs.
+
+See ``docs/ARCHITECTURE.md`` §5.1 for the full catalogue.
+"""
 from __future__ import annotations
 from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
@@ -6,14 +17,35 @@ import uuid
 
 
 def utcnow() -> str:
+    """Return the current UTC time as an ISO-8601 string.
+
+    Used everywhere a timestamp is written to SQLite. Always UTC, always
+    ISO-8601 so lexicographic ordering is also chronological.
+    """
     return datetime.now(timezone.utc).isoformat()
 
 
 def new_id(prefix: str) -> str:
+    """Generate a prefixed 12-hex-char UUID4 identifier.
+
+    Example: ``new_id("evt") -> "evt_8f3c1a2b4d5e"``. Prefixes used across
+    the codebase: ``evt`` (event), ``ent`` (entity, via resolver), ``case``,
+    ``prop`` (proposal), ``aud`` (audit), ``rcp`` (receipt), ``str``
+    (structure), ``geo`` (geofence), ``trk`` (track), ``ovr`` (overlay),
+    ``cal`` (calibration), ``inc`` (incident), ``sess`` (session), ``usr``
+    (user), ``con`` (connector), ``run`` (connector run), ``note``,
+    ``watch``, ``ce`` (case_event).
+    """
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
 def _validate_polygon_points(polygon: list[list[float]]) -> list[list[float]]:
+    """Validate a ``[[lat, lng], ...]`` polygon shape.
+
+    Enforces: at least 3 vertices, each vertex a 2-element pair, latitudes in
+    ``[-90, 90]``, longitudes in ``[-180, 180]``. Raises ``ValueError`` on
+    any violation (which Pydantic surfaces as a 422 to the HTTP caller).
+    """
     if len(polygon) < 3:
         raise ValueError("Polygon must have at least 3 points")
     for point in polygon:

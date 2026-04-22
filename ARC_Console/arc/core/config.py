@@ -1,3 +1,14 @@
+"""Configuration surface for ARC-Core.
+
+All tunable settings live here. Values come from either compile-time constants
+(e.g. ``APP_NAME``, ``APP_VERSION``, limit caps) or environment variables with
+safe demo defaults (``ARC_DEMO_MODE``, ``ARC_SHARED_TOKEN``,
+``ARC_SESSION_TTL_HOURS``, ``ARC_BOOTSTRAP_PASSWORD``).
+
+See ``docs/ARCHITECTURE.md`` §3 for a complete rundown of every constant and
+env var, including security-sensitive defaults that must be changed before
+production deploy.
+"""
 from __future__ import annotations
 import os
 from pathlib import Path

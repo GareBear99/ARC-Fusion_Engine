@@ -1,8 +1,25 @@
+"""Directed entity-relation graph.
+
+Edges accumulate weight every time an event links two entities via a given
+relation type (``event_type``). The graph is read-only for analysts; writes
+happen implicitly through ``services.ingest.create_event``.
+
+See ``docs/ARCHITECTURE.md`` §7.3.
+"""
 from __future__ import annotations
 from arc.core.db import connect
 from arc.core.schemas import utcnow
 
+
 def upsert_edge(src_entity: str, dst_entity: str, relation: str, increment: float = 1.0, conn=None) -> None:
+    """Insert or strengthen the directed edge ``src -[relation]-> dst``.
+
+    ``edge_id`` is a deterministic composite ``edge_{src}_{relation}_{dst}``
+    truncated to 180 chars. If the edge exists, ``weight += increment``
+    (rounded to 2dp); otherwise a new row is inserted with
+    ``weight = increment``. ``conn`` can be passed to run inside an existing
+    transaction (ingest does this so events + edges commit atomically).
+    """
     edge_id = f"edge_{src_entity}_{relation}_{dst_entity}"[:180]
     now = utcnow()
     owns_conn = conn is None
@@ -24,6 +41,12 @@ def upsert_edge(src_entity: str, dst_entity: str, relation: str, increment: floa
         conn.close()
 
 def snapshot(limit: int = 250) -> dict:
+    """Return a ``{nodes, edges}`` graph snapshot for UI rendering.
+
+    Nodes are top entities by ``(risk_score DESC, last_seen DESC)``; edges
+    are top relations by ``(weight DESC, last_seen DESC)``. Both are capped
+    by ``limit`` independently.
+    """
     with connect() as conn:
         nodes = [dict(row) for row in conn.execute(
             "SELECT entity_id, label, entity_type, risk_score FROM entities ORDER BY risk_score DESC, last_seen DESC LIMIT ?", (limit,)

@@ -1,3 +1,10 @@
+"""Analyst notebook.
+
+Notes are subject-scoped (``subject_type`` ∈ ``{case, entity, subject,
+connector}``) and tagged. Every new note appends a ``note`` receipt to the
+chain so the notebook's history is verifiable alongside the rest of the
+operator audit trail.
+"""
 from __future__ import annotations
 import json
 from arc.core.db import connect
@@ -6,6 +13,7 @@ from arc.services.audit import append_receipt
 
 
 def create_note(item: NoteIn, actor_role: str) -> dict:
+    """Persist a note and emit a ``note`` receipt; return the canonical note dict."""
     note_id = new_id("note")
     with connect() as conn:
         conn.execute(
@@ -18,6 +26,7 @@ def create_note(item: NoteIn, actor_role: str) -> dict:
 
 
 def get_note(note_id: str) -> dict:
+    """Load a single note by id with tags deserialized. Raises ``KeyError`` if absent."""
     with connect() as conn:
         row = conn.execute("SELECT * FROM analyst_notes WHERE note_id = ?", (note_id,)).fetchone()
         if not row:
@@ -28,6 +37,7 @@ def get_note(note_id: str) -> dict:
 
 
 def list_notes(subject_type: str | None = None, subject_id: str | None = None, limit: int = 100) -> list[dict]:
+    """List notes, optionally narrowed to a single ``(subject_type, subject_id)``."""
     with connect() as conn:
         if subject_type and subject_id:
             rows = conn.execute("SELECT * FROM analyst_notes WHERE subject_type = ? AND subject_id = ? ORDER BY created_at DESC LIMIT ?", (subject_type, subject_id, limit)).fetchall()

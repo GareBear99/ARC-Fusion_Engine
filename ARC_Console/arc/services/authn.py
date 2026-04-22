@@ -1,3 +1,12 @@
+"""Session-based authentication: login, session resolution, bootstrap admin.
+
+Password storage goes through ``arc.core.auth.make_password_hash`` (PBKDF2).
+Session tokens are ``secrets.token_urlsafe(32)`` strings with a default
+12-hour TTL (see ``ARC_SESSION_TTL_HOURS``). There is no sliding renewal;
+clients re-login on expiry.
+
+See ``docs/ARCHITECTURE.md`` §6.3.
+"""
 from __future__ import annotations
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -9,10 +18,18 @@ from arc.services.audit import append_receipt, log
 
 
 def _expires_at() -> str:
+    """Return the ISO-8601 timestamp at which a new session would expire."""
     return (datetime.now(timezone.utc) + timedelta(hours=SESSION_TTL_HOURS)).isoformat()
 
 
 def ensure_bootstrap_admin() -> dict:
+    """Idempotently ensure a default ``admin`` user exists.
+
+    No-op if an ``admin`` row already exists. Otherwise creates one with
+    ``role="admin"`` and password ``ARC_BOOTSTRAP_PASSWORD`` (default
+    ``"arc-demo-admin"``), and emits an ``auth_user`` receipt. Called on
+    every process start from ``bootstrap.seed_demo``.
+    """
     with connect() as conn:
         row = conn.execute("SELECT * FROM auth_users WHERE username = 'admin' LIMIT 1").fetchone()
         if row:
@@ -30,6 +47,17 @@ def ensure_bootstrap_admin() -> dict:
 
 
 def login(payload: LoginIn) -> dict:
+    """Authenticate credentials and mint a new session token.
+
+    Calls ``ensure_bootstrap_admin`` first so the caller never faces a
+    'no admin user' edge case on a fresh DB. Verifies the password with
+    constant-time PBKDF2 comparison. On success inserts a new
+    ``auth_sessions`` row, stamps ``last_login_at`` on the user, writes an
+    audit row, appends an ``auth_session`` receipt, and returns the
+    session's metadata (including the bearer ``token``). Raises
+    ``ValueError("Invalid credentials")`` on failure, which the HTTP layer
+    converts to 401.
+    """
     ensure_bootstrap_admin()
     with connect() as conn:
         row = conn.execute("SELECT * FROM auth_users WHERE username = ?", (payload.username,)).fetchone()
@@ -62,6 +90,11 @@ def login(payload: LoginIn) -> dict:
 
 
 def resolve_session(token: str | None) -> dict | None:
+    """Return the joined user+session row for a bearer token, or ``None``.
+
+    Returns ``None`` when the token is missing, not found, revoked, or
+    expired. Used by both ``/api/auth/session`` and ``core.auth.require_role``.
+    """
     if not token:
         return None
     with connect() as conn:

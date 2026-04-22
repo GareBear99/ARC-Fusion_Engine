@@ -1,3 +1,23 @@
+"""Audit log + tamper-evident receipt chain.
+
+This module implements the heart of ARC-Core's integrity story:
+
+* ``log(...)`` writes to ``audit_log`` — a simple debug/forensics trail used
+  by every mutating API route. Not cryptographically chained.
+* ``append_receipt(...)`` appends to ``receipt_chain`` — the SHA-256 +
+  HMAC-signed chain that downstream consumers can verify end-to-end via
+  ``verify_receipt_chain``. Every state-producing operation (events,
+  structures, sensors, geofences, tracks, overlays, calibrations,
+  incidents, auth users/sessions, notes, connectors, connector runs)
+  appends one receipt.
+
+Chain protocol: each row's ``hash = sha256(prev_hash|ts|type|id|role|payload)``
+and ``signature = hmac_sha256(key, same_payload)``. Verification walks
+rows in insertion order and re-derives both; any mismatch aborts with a
+precise reason code.
+
+See ``docs/ARCHITECTURE.md`` §8.
+"""
 from __future__ import annotations
 import base64
 import hashlib
@@ -9,11 +29,19 @@ from arc.core.config import KEY_DIR
 from arc.core.db import connect
 from arc.core.schemas import new_id, utcnow
 
+#: On-disk path to the 32-byte HMAC signing key. Created on first use.
 SIGNING_KEY_PATH = KEY_DIR / "receipt_signing.key"
+#: Identifier recorded on every receipt row for future key-rotation support.
 KEY_ID = "local-hmac-v1"
 
 
 def _ensure_signing_key() -> bytes:
+    """Return the HMAC signing key, minting one on first call.
+
+    The key is 32 random bytes from ``secrets.token_bytes``. It's written to
+    ``data/keys/receipt_signing.key`` with default file permissions; operators
+    should tighten those (``chmod 600``) in production.
+    """
     KEY_DIR.mkdir(parents=True, exist_ok=True)
     if SIGNING_KEY_PATH.exists():
         return SIGNING_KEY_PATH.read_bytes()
@@ -29,6 +57,12 @@ def _encode_signature(payload: str) -> str:
 
 
 def log(actor_role: str, action: str, target: str, detail: dict) -> None:
+    """Write one row to ``audit_log``.
+
+    Used by every mutating HTTP route for operator traceability. This is
+    *not* cryptographically chained — for tamper-evidence, call
+    ``append_receipt`` instead (or in addition).
+    """
     with connect() as conn:
         conn.execute(
             "INSERT INTO audit_log (audit_id, ts, actor_role, action, target, detail_json) VALUES (?, ?, ?, ?, ?, ?)",
@@ -38,6 +72,15 @@ def log(actor_role: str, action: str, target: str, detail: dict) -> None:
 
 
 def append_receipt(record_type: str, record_id: str, actor_role: str, payload: dict) -> dict:
+    """Append one entry to the tamper-evident receipt chain.
+
+    Reads the current tail hash (``"GENESIS"`` if the chain is empty),
+    canonicalizes the payload via ``json.dumps(sort_keys=True)``, builds
+    the chain payload string ``"{prev_hash}|{ts}|{type}|{id}|{role}|{payload_json}"``
+    and stores both its SHA-256 hash and its base64-encoded HMAC-SHA256
+    signature. Returns ``{receipt_id, hash, signature, key_id}`` for callers
+    who want to surface the receipt fingerprint.
+    """
     with connect() as conn:
         prev = conn.execute("SELECT hash FROM receipt_chain ORDER BY ts DESC, receipt_id DESC LIMIT 1").fetchone()
         prev_hash = prev["hash"] if prev else "GENESIS"
@@ -56,12 +99,21 @@ def append_receipt(record_type: str, record_id: str, actor_role: str, payload: d
 
 
 def list_receipts(limit: int = 100) -> list[dict]:
+    """Return the most recent receipts, newest-first, with payload deserialized."""
     with connect() as conn:
         rows = conn.execute("SELECT * FROM receipt_chain ORDER BY ts DESC, receipt_id DESC LIMIT ?", (limit,)).fetchall()
         return [{**dict(r), "payload": json.loads(r["payload_json"])} for r in rows]
 
 
 def verify_receipt_chain(limit: int | None = None) -> dict:
+    """Walk the receipt chain in insertion order, re-deriving each hash + HMAC.
+
+    Returns ``{ok: True, checked, tail, key_id}`` on success. On any
+    mismatch returns ``{ok: False, checked, reason, receipt_id}`` where
+    ``reason`` is one of ``prev_hash_mismatch``, ``hash_mismatch``,
+    ``signature_mismatch``. ``limit`` caps how many rows to verify — the
+    HTTP layer clamps this to ``RECEIPT_VERIFY_MAX``.
+    """
     with connect() as conn:
         query = "SELECT * FROM receipt_chain ORDER BY ts ASC, receipt_id ASC"
         params = ()

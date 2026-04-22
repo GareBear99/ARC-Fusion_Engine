@@ -1,7 +1,18 @@
+"""SQLite schema and connection factory for ARC-Core.
+
+The full schema is defined as a single ``SCHEMA`` DDL string below
+(17 tables, all ``CREATE TABLE IF NOT EXISTS`` so ``init_db()`` is
+idempotent). The database runs in WAL mode with foreign keys on and a
+15-second busy timeout so concurrent reads don't block writes.
+
+See ``docs/ARCHITECTURE.md`` §4 for a column-by-column description of each
+table.
+"""
 from __future__ import annotations
 import sqlite3
 from arc.core.config import DATA_DIR
 
+#: Absolute path to the single SQLite database file.
 DB_PATH = DATA_DIR / "arc_core.db"
 
 SCHEMA = """
@@ -266,6 +277,14 @@ CREATE INDEX IF NOT EXISTS idx_notes_subject ON analyst_notes(subject_type, subj
 
 
 def connect() -> sqlite3.Connection:
+    """Open a configured SQLite connection.
+
+    Creates ``DATA_DIR`` if missing, enables foreign keys, sets a 15-second
+    ``busy_timeout`` to cope with WAL contention, and installs ``sqlite3.Row``
+    as the row factory so callers can use dict-style column access. Callers
+    should always use ``with connect() as conn:`` to get proper transaction
+    handling.
+    """
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=15.0)
     conn.row_factory = sqlite3.Row
@@ -275,6 +294,12 @@ def connect() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    """Apply the full schema script to the database.
+
+    Idempotent — every ``CREATE`` uses ``IF NOT EXISTS``. Safe to call on
+    every process start (and in fact is called by
+    ``arc.services.bootstrap.seed_demo``).
+    """
     with connect() as conn:
         conn.executescript(SCHEMA)
         conn.commit()

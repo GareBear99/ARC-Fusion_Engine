@@ -1,3 +1,13 @@
+"""HTTP route definitions for ARC-Core (~47 endpoints).
+
+Every route here is a thin adapter over a service module: the HTTP layer
+does role enforcement (via the ``role_*`` Depends guards), query-param
+clamping (``_bounded``), error-shape translation (KeyError → 404,
+ValueError → 400), and audit logging. All business logic lives under
+``arc.services.*``.
+
+See ``docs/ARCHITECTURE.md`` §11 for a full endpoint catalogue.
+"""
 from __future__ import annotations
 import json
 from pathlib import Path
@@ -33,26 +43,32 @@ ROOT_UI = Path(__file__).resolve().parents[1] / "ui" / "dashboard.html"
 
 
 def role_observer(x_arc_role: str = Header(default="observer"), x_arc_token: str | None = Header(default=None), authorization: str | None = Header(default=None)):
+    """Dependency: require at least the ``observer`` role on the incoming request."""
     return require_role("observer", x_arc_role, x_arc_token, authorization)
 
 
 def role_analyst(x_arc_role: str = Header(default="observer"), x_arc_token: str | None = Header(default=None), authorization: str | None = Header(default=None)):
+    """Dependency: require at least the ``analyst`` role."""
     return require_role("analyst", x_arc_role, x_arc_token, authorization)
 
 
 def role_operator(x_arc_role: str = Header(default="observer"), x_arc_token: str | None = Header(default=None), authorization: str | None = Header(default=None)):
+    """Dependency: require at least the ``operator`` role (proposal creation)."""
     return require_role("operator", x_arc_role, x_arc_token, authorization)
 
 
 def role_approver(x_arc_role: str = Header(default="observer"), x_arc_token: str | None = Header(default=None), authorization: str | None = Header(default=None)):
+    """Dependency: require at least the ``approver`` role (proposal approval)."""
     return require_role("approver", x_arc_role, x_arc_token, authorization)
 
 
 def role_admin(x_arc_role: str = Header(default="observer"), x_arc_token: str | None = Header(default=None), authorization: str | None = Header(default=None)):
+    """Dependency: require the ``admin`` role (connector management)."""
     return require_role("admin", x_arc_role, x_arc_token, authorization)
 
 
 def _bounded(limit: int) -> int:
+    """Clamp an HTTP ``limit`` query param to ``[1, MAX_LIMIT]``."""
     return max(1, min(MAX_LIMIT, limit))
 
 

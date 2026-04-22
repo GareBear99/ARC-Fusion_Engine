@@ -1,10 +1,27 @@
+"""Canonical entity-id minting and alias tracking.
+
+Given a raw human-readable label, returns a stable ``ent_...`` identifier.
+The mapping is deterministic: any whitespace/case variant of the same label
+collapses to the same entity_id, so callers don't need to pre-normalize.
+
+See ``docs/ARCHITECTURE.md`` §7.1.
+"""
 from __future__ import annotations
 from arc.core.db import connect
 from arc.core.schemas import utcnow
 from arc.core.util import normalize_entity, guess_entity_type
 import json
 
+
 def resolve_entity(label: str) -> str:
+    """Return the canonical ``entity_id`` for ``label``, creating it if new.
+
+    The entity_id is ``"ent_" + normalize(label).replace(" ", "_")[:48]``.
+    If the row already exists, ``label`` is appended to its aliases list
+    (deduplicated, sorted) and ``last_seen`` is refreshed. Otherwise a new
+    row is inserted with ``guess_entity_type(label)``, aliases ``[label]``,
+    and ``risk_score=0``.
+    """
     normalized = normalize_entity(label)
     entity_id = f"ent_{normalized.replace(' ', '_')[:48]}"
     now = utcnow()

@@ -1,3 +1,12 @@
+"""Event ingestion: the authoritative entry point for state-producing writes.
+
+Every mutation that matters to downstream correctness flows through
+``create_event``: entity resolution, fingerprint-based deduplication, risk
+scoring, graph-edge accumulation, and receipt-chain appending all happen
+here in a single transaction + post-commit receipt.
+
+See ``docs/ARCHITECTURE.md`` §7.2 for the step-by-step spec.
+"""
 from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
@@ -11,6 +20,12 @@ from arc.services.audit import append_receipt
 
 
 def _event_count_7d(conn, subject_entity: str) -> int:
+    """Return the count of events for ``subject_entity`` in the last 7 days.
+
+    Used as one of the inputs to ``risk.score_event``. A sliding 7-day window
+    keeps risk responsive to bursts without permanently inflating scores
+    when activity cools down.
+    """
     cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     row = conn.execute(
         "SELECT COUNT(*) AS c FROM events WHERE ts >= ? AND subject = ?",
@@ -20,6 +35,27 @@ def _event_count_7d(conn, subject_entity: str) -> int:
 
 
 def create_event(data: EventIn) -> EventOut:
+    """Ingest one event through the full ARC-Core pipeline.
+
+    Pipeline:
+
+    1. Resolve subject (and object if present) to canonical ``entity_id``.
+    2. Compute the 24-char SHA-256 fingerprint from the canonicalized blob.
+    3. If an event with this fingerprint already exists, return the existing
+       ``EventOut`` (idempotent replay — this is why retries are safe).
+    4. Compute risk inputs: watchlist status, graph connectivity, 7-day
+       event count; pass them through ``risk.score_event``.
+    5. Insert into ``events`` (payload canonically JSON-encoded).
+    6. Monotonically raise the subject entity's ``risk_score`` via
+       ``MAX(risk_score, new_score)``.
+    7. Upsert a directed edge subject→object on ``event_type`` if the event
+       has an object, reusing the ingest transaction.
+    8. Commit.
+    9. Outside the transaction, append a ``"event"`` receipt to the chain
+       (post-commit so a receipt never exists for a rolled-back event).
+
+    Returns the ``EventOut`` with the assigned ``id`` and ``fingerprint``.
+    """
     subject_entity = resolve_entity(data.subject)
     object_entity = resolve_entity(data.object) if data.object else None
     fp = fingerprint(data.event_type, data.source, data.subject, data.object, data.location, data.payload)
@@ -58,6 +94,17 @@ def create_event(data: EventIn) -> EventOut:
 
 
 def list_events(limit: int = 50, q: str | None = None) -> list[dict]:
+    """Return the most recent events, optionally filtered by a free-text query.
+
+    When ``q`` is provided, matches are case-insensitive LIKE searches across
+    ``event_type``, ``source``, ``subject``, ``object``, ``location``, the
+    serialized ``payload_json``, and the joined entity labels for subject
+    and object. Results are always ordered by ``ts DESC`` and capped by
+    ``limit`` (which the HTTP layer clamps to ``MAX_LIMIT``).
+
+    No FTS index is used — this is a full table scan with LIKE predicates,
+    which is fine up to ~10^6 events on commodity disks.
+    """
     with connect() as conn:
         if q:
             token = f"%{q.lower()}%"
