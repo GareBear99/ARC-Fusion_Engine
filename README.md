@@ -6,6 +6,19 @@ The design bet is simple and falsifiable: if a system — a game, a simulator, a
 
 > **Inspiration — *Continuum* (2012 Canadian sci-fi, creator Simon Barry, 4 seasons, 42 episodes).** Set in 2077, under a Corporate Congress surveillance dystopia where CPS "Protectors" like Kiera Cameron carry CMR (cellular memory recall) implants and every action is logged, reviewed, and attributable. ARC-Core takes that world's *idea* — a tamper-evident signal-intelligence spine with authority, provenance, and replay — and builds an ethical, open-source version of it: same discipline (every event has a receipt, every actor has an authority), opposite politics (author-owned, MIT-licensed, analyst-serving, not a corporate-oligarchy surveillance tool). The show is the *aesthetic and doctrinal reference*; no characters, logos, or canon code are claimed.
 
+<sub>**Topics**: signal intelligence · event sourcing · receipt chains · universal event spine · cognitive architecture · deterministic systems · case management · geospatial intelligence · FastAPI · SQLite · authority gating · ARC ecosystem · governed AI · operator console · Proto-AGI infrastructure · live AI deployment · continuous learning worker · gh-ai-operator · ARC-Neuron-LLMBuilder · Cloudflare Workers AI</sub>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-powered-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Tests: 23](https://img.shields.io/badge/tests-23%20passing-brightgreen.svg)](./ARC_Console/tests)
+[![Hardware floor: 2012 Intel Mac](https://img.shields.io/badge/hardware%20floor-2012%20Intel%20Mac-0e8a16)](./docs/HARDWARE_FLOOR.md)
+[![Role: Authority Spine](https://img.shields.io/badge/role-authority%20spine-b60205)](./ECOSYSTEM.md)
+[![Ecosystem](https://img.shields.io/badge/ARC%20Ecosystem-7%20repos-orange)](./ECOSYSTEM.md)
+[![Sponsor](https://img.shields.io/badge/Sponsor-GareBear99-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/GareBear99)
+
+---
+
 ## 🤖 Live deployment — the AI operative feedback loop
 
 **A real AI operative is running on this spine right now.** The [ARC GitHub AI Operator](https://github.com/GareBear99/gh-ai-operator) answers code-review issues on the [Portfolio](https://github.com/GareBear99/Portfolio), runs clone + snapshot + heuristics + [Cloudflare Workers AI](https://github.com/GareBear99/gh-ai-operator/blob/main/cloudflare/README.md), and posts a verdict (🟢 ship · 🟡 feedback · 🔴 redesign) back on the issue. Every review is an ARC-Core-shaped event; every verdict is a receipt. Every production call also emits a supervised training example that [ARC-Neuron-LLMBuilder](https://github.com/GareBear99/ARC-Neuron-LLMBuilder) ingests nightly — so the operative is also a **continuous-learning worker** for the next Gate v2 candidate.
@@ -47,17 +60,6 @@ Activation secrets (each hop degrades gracefully if its secret is missing):
 - `gh-ai-operator → PORTFOLIO_WRITE_TOKEN` — PAT with `issues: write` on Portfolio.
 - `Portfolio → AI_OPERATOR_DISPATCH_TOKEN` — PAT with `Actions: write` on gh-ai-operator.
 - `ARC-Neuron-LLMBuilder → OPERATOR_READ_TOKEN` — PAT with `Actions: read` on gh-ai-operator.
-
-<sub>**Topics**: signal intelligence · event sourcing · receipt chains · universal event spine · cognitive architecture · deterministic systems · case management · geospatial intelligence · FastAPI · SQLite · authority gating · ARC ecosystem · governed AI · operator console · Proto-AGI infrastructure · live AI deployment · continuous learning worker · gh-ai-operator · ARC-Neuron-LLMBuilder · Cloudflare Workers AI</sub>
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-powered-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Tests: 23](https://img.shields.io/badge/tests-23%20passing-brightgreen.svg)](./ARC_Console/tests)
-[![Hardware floor: 2012 Intel Mac](https://img.shields.io/badge/hardware%20floor-2012%20Intel%20Mac-0e8a16)](./docs/HARDWARE_FLOOR.md)
-[![Role: Authority Spine](https://img.shields.io/badge/role-authority%20spine-b60205)](./ECOSYSTEM.md)
-[![Ecosystem](https://img.shields.io/badge/ARC%20Ecosystem-7%20repos-orange)](./ECOSYSTEM.md)
-[![Sponsor](https://img.shields.io/badge/Sponsor-GareBear99-ea4aaa?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/GareBear99)
 
 ---
 
