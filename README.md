@@ -132,7 +132,7 @@ ARC-Core is the **only** row in the category that is simultaneously:
 
 | | External verify in 1 call | Measured & published | $0 / 1M events | Setup <2s | MIT full source | Multi-domain proven |
 |---|---|---|---|---|---|---|
-| **ARC-Core** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (seven consumer repos) |
+| **ARC-Core** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ (13 consumer repos across 4 categories) |
 | Palantir Gotham | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Anduril Lattice | ❌ | ❌ | ❌ | ❌ | ❌ | Defense-scoped |
 | AWS QLDB | ✅ | ✅ | ❌ | managed | ❌ | DB-scoped |
@@ -204,9 +204,18 @@ Deep dive on the *Continuum* ARC / Alec Sadler's CMR, competitor comparison, gap
 Hardware floor + 2012 Intel Mac install playbook + measured runtime budgets: [**docs/HARDWARE_FLOOR.md**](./docs/HARDWARE_FLOOR.md).
 Universal-host adaptation guide (how any application rides on ARC-Core on constrained hardware): [**docs/UNIVERSAL_HOST.md**](./docs/UNIVERSAL_HOST.md).
 
-### And beyond the core ecosystem — consumer applications using ARC-Core
+### Consumer applications — organized by category
 
-ARC-Core's discipline is also used as the authority/receipt backbone for several consumer applications, games, simulators, and commercial product backends. Each of these repos carries its own **🔐 Built on ARC-Core** section with a per-project pattern-mapping table.
+ARC-Core's discipline is used as the authority / receipt backbone for **13 consumer repositories across four distinct categories**. Each repo carries its own **🔐 Built on ARC-Core** section with a per-project pattern-mapping table.
+
+| Category | Repo count | What ARC-Core gives them |
+|---|---:|---|
+| 🎮 [Games & simulators](#-games--simulators) | 4 | Player / entity event ledger · deterministic replay · receipt-verified multiplayer · anti-cheat audit |
+| 🎵 [Commercial product backends](#-commercial-product-backends) | 1 hub + 14 plugins | Entitlement receipts · seat audit · billing event log · authority-gated activation |
+| 🏠 [Domain operations platforms](#-domain-operations-platforms) | 2 | Real-world ops: lead scoring, pipeline kanban, licensed-area routing, safety incidents, evidence export |
+| 📈 [Trading & execution fleet](#-trading--execution-fleet) | 6 | Market tick = event · order = proposal · fill = receipt · risk limit = authority · backtest = deterministic replay |
+
+#### 🎮 Games & simulators
 
 | Application | Repository | What it uses ARC-Core for |
 |---|---|---|
@@ -214,12 +223,32 @@ ARC-Core's discipline is also used as the authority/receipt backbone for several
 | **🌌 Seeded Universe Recreation Engine** | [Seeded-Universe-Recreation-Engine](https://github.com/GareBear99/Seeded-Universe-Recreation-Engine) | Ships `ARC_Console/` **inside the repo** — live FastAPI integration. Seed receipts for every universe-generation event, entity-resolution pattern for celestial objects, deterministic event log for simulation replay, authority over "this seed produced this universe" |
 | **🎨 Proto-Synth Grid Engine** | [Proto-Synth_Grid_Engine](https://github.com/GareBear99/Proto-Synth_Grid_Engine) | Carries an `ARC_CORE_AUDIT_v44.txt` audit artifact. Blueprint events, grid mutations, module attachment, simulation-loop tick receipts, save-file event logs, Voxel/Neural-Synth sync, authority-gated mutations, audit trail |
 | **🔭 Neo-VECTR Solar Sim (NASA Standard)** | [Neo-VECTR_Solar_Sim_NASA_Standard](https://github.com/GareBear99/Neo-VECTR_Solar_Sim_NASA_Standard) | Truth-pack receipt chain (every celestial object has provenance), event-sourced navigation, authority over what counts as "proven" (NASA standard), deterministic universe-graph replay |
+
+#### 🎵 Commercial product backends
+
+| Application | Repository | What it uses ARC-Core for |
+|---|---|---|
 | **🎵 TizWildin Entertainment Hub** | [TizWildinEntertainmentHUB](https://github.com/GareBear99/TizWildinEntertainmentHUB) | **Entire plugin-ecosystem backend** — entitlement receipts (who owns which plugin), seat-assignment audit trail, Stripe billing event log, GitHub release-polling event chain, authority-gated activation, support-case management, and orchestration for **14 JUCE audio plugins** (FreeEQ8, PaintMask, WURP, AETHER, WhisperGate, Therum, Instrudio, BassMaid, SpaceMaid, GlueMaid, MixMaid, ChainMaid, RiftWave Suite, FreeSampler) |
+
+#### 🏠 Domain operations platforms
+
+| Application | Repository | What it uses ARC-Core for |
+|---|---|---|
 | **🏠 RAG Command Center** | [RAG-Command-Center](https://github.com/GareBear99/RAG-Command-Center) | Full-stack real estate intelligence platform (Victoria, BC ops + Canada-wide listings). Signal compile = event ingest + fingerprint dedupe; 0–100 deal/lead scores = explainable linear `score_event` analog; pipeline kanban = proposal → evidence → receipt → approval; licensed-area routing = authority gating; hot/warm/cold/stale decay = sliding-window risk; Cloudflare Worker hourly cron = connector-poll; SHA-256 auth on command-center surface. |
 | **🤖 Robotics Master Controller** | [Robotics-Master-Controller](https://github.com/GareBear99/Robotics-Master-Controller) | Robotics research hub (prosthetics, actuation, fabrication, exoskeleton). Portfolio surface today; architectural spec for any future control stack: actuator commands (fingerprint dedupe), sensor streams (event sourcing), motor/E-stop (authority gating), fabrication jobs (proposal lifecycle), safety incidents (`incident` receipts + geofence generalization), evidence export for safety review. |
-| **📈 Trading fleet** | [BrokeBot](https://github.com/GareBear99/BrokeBot) · [Charm](https://github.com/GareBear99/Charm) · [Harvest](https://github.com/GareBear99/Harvest) · [One-Shot-Multi-Shot](https://github.com/GareBear99/One-Shot-Multi-Shot) · [DecaGrid](https://github.com/GareBear99/DecaGrid) · [EdgeStack_Currency](https://github.com/GareBear99/EdgeStack_Currency) | Six public trading / execution repos. **BrokeBot** = CEX funding-rate arbitrage (Binance Futures, Python). **Charm** = on-chain Uniswap v3 spot bot on Base (Node.js). **Harvest** = multi-timeframe crypto research platform with grid-search strategy discovery. **One-Shot-Multi-Shot** = binary-options engine with 3-hearts risk lifecycle. **DecaGrid** = offline-first capital-ladder docs pack. **EdgeStack_Currency** = canonical event-sourced multi-currency execution spec. ARC-Core maps: market tick = event · order = proposal with simulated PnL · fill = receipt · API key = scoped `auth_user` · risk limits = `require_role("approver", …)` · backtest = deterministic replay · reconciliation = `RECONCILIATION_CORRECTION` event (per EdgeStack spec). |
 
-ARC-Core is the authority backbone for **all** of the above. Every player action, seed event, grid mutation, celestial fact, plugin activation, billing transaction, real-estate lead, and (future) actuator command or order fill is an ARC-Core-shaped event with a receipt.
+#### 📈 Trading & execution fleet
+
+| Application | Repository | Stack | What it uses ARC-Core for |
+|---|---|---|---|
+| **BrokeBot** — CEX funding-rate arbitrage | [BrokeBot](https://github.com/GareBear99/BrokeBot) | Python, Binance Futures | Funding tick = event · entry decision = proposal · fill = receipt · risk-limit halt = authority refusal · kill switch = manual authority override |
+| **Charm** — Uniswap v3 spot bot on Base | [Charm](https://github.com/GareBear99/Charm) | Node.js, ethers.js | Pool sample = event · mean-reversion trigger = proposal · swap tx = receipt · dedicated-wallet private key = scoped `auth_user` · per-session cap = authority limit |
+| **Harvest** — multi-timeframe crypto research platform | [Harvest](https://github.com/GareBear99/Harvest) | Python, Web3 | OHLCV ingest = events · strategy selection = proposal w/ evidence · backtest = deterministic replay · data-freshness gate = authority refusal · MetaMask session = scoped auth |
+| **One-Shot-Multi-Shot** — binary-options 3-hearts engine | [One-Shot-Multi-Shot](https://github.com/GareBear99/One-Shot-Multi-Shot) | JS / HTML5, MetaMask | Prediction tick = event · trade gate = proposal · outcome = receipt · heart depletion = authority halt · daily cap = authority ceiling |
+| **DecaGrid** — capital-ladder grid docs pack | [DecaGrid](https://github.com/GareBear99/DecaGrid) | Static HTML / PDF | DecaScore tier = authority stratum · ladder rung = sizing authority · runbook clause = authority contract · records page = receipt-chain spec |
+| **EdgeStack_Currency** — event-sourced multi-currency execution spec | [EdgeStack_Currency](https://github.com/GareBear99/EdgeStack_Currency) | Plain-prose spec | Immutable event ledger = ARC-Core event log · `FILL_PARTIAL` / `FX_CONVERSION` / `FEE` = receipts · `RECONCILIATION_CORRECTION` = authority-gated dual-record event |
+
+ARC-Core is the authority backbone for **all 13 repos above**. Every player action, seed event, grid mutation, celestial fact, plugin activation, billing transaction, real-estate lead, robotics actuator command, market tick, order fill, and reconciliation correction is an ARC-Core-shaped event with a receipt. Full per-repo integration contracts in [**ECOSYSTEM.md**](./ECOSYSTEM.md).
 
 ---
 
