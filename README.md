@@ -69,6 +69,20 @@ All seven repos share one author and one funding target: [github.com/sponsors/Ga
 
 Full per-repo integration contracts: [**ECOSYSTEM.md**](./ECOSYSTEM.md).
 
+### And beyond the core ecosystem — consumer applications using ARC-Core
+
+ARC-Core's discipline is also used as the authority/receipt backbone for several consumer applications, games, simulators, and commercial product backends. Each of these repos carries its own **🔐 Built on ARC-Core** section with a per-project pattern-mapping table.
+
+| Application | Repository | What it uses ARC-Core for |
+|---|---|---|
+| **🎮 Rift Ascent** | [RiftAscent](https://github.com/GareBear99/RiftAscent) | Player-event ledger (moves, kills, prestige cycles, upgrades), receipt-verified co-op sessions, tamper-evident high-score chain, deterministic game-state replay via event sourcing, anti-cheat audit trail |
+| **🌌 Seeded Universe Recreation Engine** | [Seeded-Universe-Recreation-Engine](https://github.com/GareBear99/Seeded-Universe-Recreation-Engine) | Ships `ARC_Console/` **inside the repo** — live FastAPI integration. Seed receipts for every universe-generation event, entity-resolution pattern for celestial objects, deterministic event log for simulation replay, authority over "this seed produced this universe" |
+| **🎨 Proto-Synth Grid Engine** | [Proto-Synth_Grid_Engine](https://github.com/GareBear99/Proto-Synth_Grid_Engine) | Carries an `ARC_CORE_AUDIT_v44.txt` audit artifact. Blueprint events, grid mutations, module attachment, simulation-loop tick receipts, save-file event logs, Voxel/Neural-Synth sync, authority-gated mutations, audit trail |
+| **🔭 Neo-VECTR Solar Sim (NASA Standard)** | [Neo-VECTR_Solar_Sim_NASA_Standard](https://github.com/GareBear99/Neo-VECTR_Solar_Sim_NASA_Standard) | Truth-pack receipt chain (every celestial object has provenance), event-sourced navigation, authority over what counts as "proven" (NASA standard), deterministic universe-graph replay |
+| **🎵 TizWildin Entertainment Hub** | [TizWildinEntertainmentHUB](https://github.com/GareBear99/TizWildinEntertainmentHUB) | **Entire plugin-ecosystem backend** — entitlement receipts (who owns which plugin), seat-assignment audit trail, Stripe billing event log, GitHub release-polling event chain, authority-gated activation, support-case management, and orchestration for **14 JUCE audio plugins** (FreeEQ8, PaintMask, WURP, AETHER, WhisperGate, Therum, Instrudio, BassMaid, SpaceMaid, GlueMaid, MixMaid, ChainMaid, RiftWave Suite, FreeSampler) |
+
+ARC-Core is the authority backbone for **all** of the above. Every player action, seed event, grid mutation, celestial fact, plugin activation, and billing transaction is an ARC-Core-shaped event with a receipt.
+
 ---
 
 ## What ARC-Core is

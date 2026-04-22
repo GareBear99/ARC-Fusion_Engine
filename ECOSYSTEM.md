@@ -130,6 +130,152 @@ This document is the canonical index of **where ARC-Core is used and exactly wha
 
 ---
 
+## Consumer applications — ARC-Core beyond the governed-AI stack
+
+ARC-Core is also the authority/receipt backbone for several **consumer applications, games, simulators, and commercial product backends** that are not part of the core seven-repo governed-AI ecosystem but depend on ARC-Core's discipline for the same reasons: event truth, receipt chains, and authority gating.
+
+Each of the five consumer repos below now carries its own **🔐 Built on ARC-Core** section with a per-project pattern-mapping table, so the relationship is documented bidirectionally.
+
+| Application | Repository |
+|---|---|
+| 🎮 Rift Ascent | [RiftAscent](https://github.com/GareBear99/RiftAscent) |
+| 🌌 Seeded Universe Recreation Engine | [Seeded-Universe-Recreation-Engine](https://github.com/GareBear99/Seeded-Universe-Recreation-Engine) |
+| 🎨 Proto-Synth Grid Engine | [Proto-Synth_Grid_Engine](https://github.com/GareBear99/Proto-Synth_Grid_Engine) |
+| 🔭 Neo-VECTR Solar Sim | [Neo-VECTR_Solar_Sim_NASA_Standard](https://github.com/GareBear99/Neo-VECTR_Solar_Sim_NASA_Standard) |
+| 🎵 TizWildin Entertainment Hub | [TizWildinEntertainmentHUB](https://github.com/GareBear99/TizWildinEntertainmentHUB) |
+
+---
+
+### 🎮 Rift Ascent
+
+**A canvas-based action game with prestige cycles, upgrades, co-op, and procedural audio — coming to iOS and Android.**
+
+#### What Rift Ascent uses ARC-Core for
+
+- **Player-event ledger** — every move, kill, heat-gain, prestige cycle, and upgrade purchase becomes an ARC-Core-shaped event with a SHA-256 identity.
+- **Co-op session receipts** — multiplayer sessions produce receipts for every shared state transition, so both clients converge on the same canonical event log.
+- **Tamper-evident high-score chain** — leaderboard submissions are signed receipts. Any modification breaks the chain and is detected at verification time.
+- **Deterministic replay** — any game session can be replayed by re-applying its event log through the canonical pipeline. Combat outcomes are reproducible.
+- **Anti-cheat audit** — client-side actions that skip the receipt flow are rejected by the server. The receipt chain *is* the anti-cheat layer.
+
+#### Where the boundary sits
+
+- **ARC-Core owns**: the event shape, the signing-key contract, the receipt format, the authority-to-act checks.
+- **Rift Ascent owns**: the gameplay, the rendering, the procedural audio, the prestige math, the upgrade trees.
+
+---
+
+### 🌌 Seeded Universe Recreation Engine
+
+**A deterministic seed-based universe engine for recreating universes from a single seed with full provenance.**
+
+#### What Seeded-Universe uses ARC-Core for
+
+- **Seed receipts** — every universe-generation event carries a receipt identifying the seed, the generator version, the generation rules applied, and the SHA-256 of the resulting state.
+- **Entity resolution for celestial objects** — stars, planets, moons, orbital systems, and galactic structures all flow through ARC-Core's entity-resolution pattern, so the same object has the same canonical identity across any recreation.
+- **Deterministic simulation replay** — a universe can be regenerated bit-for-bit from its seed + event log, with every intermediate state addressable by event ID.
+- **Authority over "this seed produced this universe"** — a signed receipt chain proves the generation is authentic and not tampered with.
+
+#### Where the boundary sits
+
+- **ARC-Core owns**: seed-receipt contract, entity identity rules, authority-chain verification.
+- **Seeded-Universe owns**: the generation algorithm, the universe graph, the rendering, the navigation.
+
+---
+
+### 🎨 Proto-Synth Grid Engine
+
+**An experimental 2D/3D low-weight system for structured grid-based cognition and visualization.**
+
+#### What Proto-Synth uses ARC-Core for
+
+- **Grid-event log** — every grid mutation (cell update, actor move, layer change) is an ARC-Core event with a receipt.
+- **Entity tracking for grid actors** — persistent actors carry ARC-Core-style entity identity that survives save/load and network sync.
+- **Deterministic state transitions** — grid state is derived by replaying events. The grid never mutates in place.
+- **Authority-gated mutations** — who may modify which layer under what policy is decided by ARC-Core's authority primitive.
+- **Persistence via receipt chain** — save files are event logs + final-state snapshots, verified by the receipt chain on load.
+
+#### Where the boundary sits
+
+- **ARC-Core owns**: event shape, entity identity, authority gating, receipt chain.
+- **Proto-Synth owns**: the grid rendering, the actor behaviors, the layer system, the UI.
+
+---
+
+### 🔭 Neo-VECTR Solar Sim (NASA Standard)
+
+**A low-weight 2D-engine (visually 3D) astronomy simulator that renders only proven celestial objects through a deterministic universe graph. Portable offline client with catalog-driven truth packs.**
+
+#### What Neo-VECTR uses ARC-Core for
+
+- **Truth-pack receipt chain** — every celestial object ships with a provenance receipt citing its NASA-standard source (catalog, identifier, observation run). Truth packs are ARC-Core-verifiable release artifacts.
+- **Event-sourced navigation** — camera, zoom, pan, and scale-tier transitions are events. Any viewport state is reconstructable from its event log.
+- **Authority over "proven"** — the NASA-standard qualifier is an authority claim backed by ARC-Core's proposal-evidence-receipt flow. Unverified objects are flagged, not silently rendered.
+- **Deterministic universe-graph replay** — the universe graph itself is derived from the truth packs + event log. Two users with the same packs see the same universe bit-for-bit.
+- **Offline verification** — because receipts are SHA-256-addressable, truth packs can be verified offline without contacting a server.
+
+#### Where the boundary sits
+
+- **ARC-Core owns**: the truth-pack receipt format, the authority-over-provenance contract, the event-sourcing pattern.
+- **Neo-VECTR owns**: the catalog ingestion, the orbit math, the rendering, the scale-tier navigation.
+
+---
+
+### 🎵 TizWildin Entertainment Hub — entire plugin ecosystem
+
+**The authority + orchestration backend for the TizWildin plugin ecosystem. FastAPI service managing entitlements, seats, Stripe billing, and GitHub release polling for 14 JUCE audio plugins.**
+
+This is ARC-Core's largest commercial consumer. The TizWildin Hub was built directly on ARC-Core discipline and is the authority layer for a **live 14-plugin commercial ecosystem**.
+
+#### What TizWildin Hub uses ARC-Core for (full surface)
+
+- **Entitlement receipts** — every purchase produces a signed receipt linking a customer identity to a plugin license. Entitlements are ARC-Core events, not mutable rows.
+- **Seat-assignment audit trail** — every seat activation, deactivation, and transfer is an event with its own receipt. Seat history is queryable by replaying the event log.
+- **Stripe billing event log** — Stripe webhook events are ingested into the ARC-Core event chain. Billing disputes are resolved by replay, not by reconciling external state.
+- **GitHub release-polling event chain** — new plugin releases are events. Customers' update-eligibility is derived by replaying the release chain against their entitlement chain.
+- **Authority-gated activation** — the activation check is the same authority primitive ARC-Core uses for analyst actions: role, session, proof-of-purchase, machine fingerprint.
+- **Support-case management** — support tickets are cases with attached events (purchase, activation attempts, error logs). The same case pattern ARC-Core pioneered.
+
+#### The 14 JUCE plugins served by this Hub
+
+The real plugin roster (as listed in the TizWildin Hub README):
+
+- [FreeEQ8](https://github.com/GareBear99/FreeEQ8) — 8-band parametric EQ with dynamic EQ, linear-phase, match EQ, M/S, spectrum analyzer ✅ Production
+- [PaintMask](https://github.com/GareBear99/PaintMask_Free-JUCE-Plugin) — visual paint-based audio processing; brush strokes become MIDI patterns ⚠️ Beta
+- [WURP](https://github.com/GareBear99/WURP_Toxic-Motion-Engine_JUCE) — Toxic Motion Engine: formant motion, corrosive saturation, elastic pitch ✅ Production
+- [AETHER](https://github.com/GareBear99/AETHER_Choir-Atmosphere-Designer) — choir & atmosphere designer: procedural choirs, pads, evolving textures ⚠️ Beta
+- [WhisperGate](https://github.com/GareBear99/WhisperGate_Free-JUCE-Plugin) — procedural whispers and ritual atmospheres via interactive geometry ✅ Production
+- [Therum](https://github.com/GareBear99/Therum_JUCE-Plugin) — bootleg Serum: free wavetable synth ✅ Production
+- [Instrudio](https://github.com/GareBear99/Instrudio) — 10 fully playable instruments; cross-platform instrument ecosystem ⚠️ Beta
+- [BassMaid](https://github.com/GareBear99/BassMaid) — bass enhancement and low-end processing ✅ Production
+- [SpaceMaid](https://github.com/GareBear99/SpaceMaid) — spatial audio: depth, width, reverb ✅ Production
+- [GlueMaid](https://github.com/GareBear99/GlueMaid) — mix-bus glue and cohesion ✅ Production
+- [MixMaid](https://github.com/GareBear99/MixMaid) — spectral balance and mix correction ✅ Production
+- [ChainMaid](https://github.com/GareBear99/ChainMaid) — sidechain ducking and pumping effects ✅ Production
+- [RiftWave Suite](https://github.com/GareBear99/RiftWaveSuite_RiftSynth_WaveForm_Lite) — modular synth + waveform synthesis ⚠️ Beta
+- [FreeSampler](https://github.com/GareBear99/FreeSampler_v0.3) — lightweight audio sampler plugin 🚧 Dev
+
+Each plugin talks to the Hub over HTTPS, and every license check, update check, and activation attempt becomes an ARC-Core event in the Hub's backend.
+
+#### Where the boundary sits
+
+- **ARC-Core owns**: the receipt format, the entitlement-event shape, the authority-over-activation contract, the case-management pattern.
+- **TizWildin Hub owns**: the Stripe integration, the FastAPI routes, the customer-facing UI, the plugin-specific activation logic, the GitHub release polling.
+- **Individual plugins own**: their DSP, their UI, their JUCE bindings. They consume the Hub, which consumes ARC-Core.
+
+---
+
+## The consumer-application rule
+
+Consumer applications can use ARC-Core's discipline without being part of the governed-AI ecosystem. The rule is the same in both directions:
+
+- **ARC-Core provides**: authority, events, receipts, SHA-256 identity, evidence export.
+- **Consumer owns**: the domain logic (game rules, simulation physics, plugin DSP, billing logic, UI).
+
+ARC-Core does not try to render anything, simulate anything, synthesize audio, run a physics engine, process payments, or know what a "celestial object" is. It knows what an **event** is, what a **receipt** is, and what **authority** means. That's enough to serve both a governed-AI lab and a commercial plugin ecosystem.
+
+---
+
 ## The frozen-roles contract
 
 The core rule across the whole ecosystem: **roles never swap**. ARC-Core's role is **authority over events and receipts**. Nothing else in the stack may claim that role.
